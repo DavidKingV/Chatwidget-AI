@@ -50,6 +50,14 @@
       errorMessage: 'No pude conectar con el asistente. Intenta de nuevo.',
       todayLabel: 'Hoy',
       typingLabel: 'escribiendo...'
+    },
+    privacy: {
+      enabled: true,
+      url: '',
+      title: 'Antes de comenzar',
+      text: 'Este asistente es una guía orientativa. No reemplaza la consulta con un profesional de la salud. Su propósito es ayudarte a describir tu caso para que recibas la atención adecuada en la clínica.',
+      linkLabel: 'Leer aviso de privacidad',
+      acceptLabel: 'Acepto y continúo'
     }
   };
 
@@ -239,7 +247,28 @@
     /* scrollbar */
     '.kxc-messages::-webkit-scrollbar{width:6px}' +
     '.kxc-messages::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}' +
-    '.kxc-messages::-webkit-scrollbar-thumb:hover{background:#9ca3af}';
+    '.kxc-messages::-webkit-scrollbar-thumb:hover{background:#9ca3af}' +
+
+    /* disabled textarea */
+    '.kxc-textarea:disabled{cursor:not-allowed;opacity:.6;background:transparent}' +
+
+    /* privacy overlay */
+    '.kxc-privacy-overlay{position:absolute;inset:0;background:rgba(15,23,42,.55);' +
+    'display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;' +
+    '-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}' +
+    '.kxc-privacy-box{background:#fff;border-radius:12px;padding:22px 22px 20px;' +
+    'max-width:360px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.18);' +
+    'display:flex;flex-direction:column;gap:10px}' +
+    '.kxc-privacy-title{font-size:16px;font-weight:600;color:#111827;margin:0}' +
+    '.kxc-privacy-text{font-size:13px;line-height:1.5;color:#4b5563;margin:0}' +
+    '.kxc-privacy-link{display:inline-block;font-size:13px;color:var(--kxc-primary);' +
+    'text-decoration:underline;margin:4px 0 8px;font-weight:500}' +
+    '.kxc-privacy-link:hover{filter:brightness(.9)}' +
+    '.kxc-privacy-accept{width:100%;padding:11px 14px;border:none;border-radius:8px;' +
+    'background:var(--kxc-primary);color:#fff;font-size:14px;font-weight:600;' +
+    'cursor:pointer;font-family:inherit;margin-top:4px}' +
+    '.kxc-privacy-accept:hover{filter:brightness(1.08)}' +
+    '.kxc-privacy-accept:focus{outline:2px solid var(--kxc-primary);outline-offset:2px}';
 
   // ---------- instance ----------
   function KinetixChatInstance(config) {
@@ -250,6 +279,9 @@
     this.menuOpen = false;
     this.storageKey =
       BASE_STORAGE_KEY + '-' + shortHash(String(config.webhookUrl || 'default'));
+    this.privacyAccepted = false;
+    this.privacyStorageKey =
+      BASE_STORAGE_KEY + '-privacy-' + shortHash(String(config.webhookUrl || 'default'));
   }
 
   KinetixChatInstance.prototype.mount = function () {
@@ -309,8 +341,13 @@
     shadow.appendChild(root);
     this.dom.root = root;
 
+    this.loadPrivacyAccepted();
     this.loadState();
     this.render();
+
+    if (!this.privacyAccepted) {
+      this.buildPrivacyOverlay();
+    }
 
     // Close menu when clicking anywhere outside it.
     // Inside shadow DOM, events are retargeted at the host on the document, so
@@ -481,6 +518,93 @@
     this.dom.menu.appendChild(box);
   };
 
+  // ---------- privacy ----------
+  KinetixChatInstance.prototype.loadPrivacyAccepted = function () {
+    var cfg = this.config.privacy || {};
+    if (cfg.enabled === false || cfg.enabled === 'false') {
+      this.privacyAccepted = true;
+      return;
+    }
+    try {
+      this.privacyAccepted = localStorage.getItem(this.privacyStorageKey) === '1';
+    } catch (e) {
+      // localStorage unavailable (private mode etc.) — show banner each load
+      this.privacyAccepted = false;
+    }
+  };
+
+  KinetixChatInstance.prototype.savePrivacyAccepted = function () {
+    try {
+      localStorage.setItem(this.privacyStorageKey, '1');
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  KinetixChatInstance.prototype.buildPrivacyOverlay = function () {
+    var cfg = this.config.privacy || {};
+    var self = this;
+
+    if (this.dom.textarea) this.dom.textarea.disabled = true;
+    if (this.dom.sendBtn) this.dom.sendBtn.disabled = true;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'kxc-privacy-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'kxc-privacy-title');
+
+    var box = document.createElement('div');
+    box.className = 'kxc-privacy-box';
+
+    var title = document.createElement('h2');
+    title.className = 'kxc-privacy-title';
+    title.id = 'kxc-privacy-title';
+    title.textContent = cfg.title;
+    box.appendChild(title);
+
+    var text = document.createElement('p');
+    text.className = 'kxc-privacy-text';
+    text.textContent = cfg.text;
+    box.appendChild(text);
+
+    if (cfg.url) {
+      var link = document.createElement('a');
+      link.className = 'kxc-privacy-link';
+      link.href = cfg.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = cfg.linkLabel;
+      box.appendChild(link);
+    }
+
+    var acceptBtn = document.createElement('button');
+    acceptBtn.className = 'kxc-privacy-accept';
+    acceptBtn.type = 'button';
+    acceptBtn.textContent = cfg.acceptLabel;
+    acceptBtn.addEventListener('click', function () {
+      self.privacyAccepted = true;
+      self.savePrivacyAccepted();
+      if (self.dom.privacyOverlay) {
+        self.dom.privacyOverlay.remove();
+        self.dom.privacyOverlay = null;
+      }
+      if (self.dom.textarea) {
+        self.dom.textarea.disabled = false;
+        self.dom.textarea.focus();
+      }
+      // sendBtn stays disabled until there's text (existing input handler logic)
+    });
+    box.appendChild(acceptBtn);
+
+    overlay.appendChild(box);
+    this.dom.root.appendChild(overlay);
+    this.dom.privacyOverlay = overlay;
+
+    // Move focus into the dialog for keyboard users / screen readers
+    setTimeout(function () { acceptBtn.focus(); }, 0);
+  };
+
   // ---------- state ----------
   KinetixChatInstance.prototype.loadState = function () {
     var raw = null;
@@ -637,6 +761,7 @@
 
   // ---------- send / receive ----------
   KinetixChatInstance.prototype.handleSend = function () {
+    if (!this.privacyAccepted) return;
     if (this.isWaiting) return;
     var text = this.dom.textarea.value.trim();
     if (!text) return;
@@ -740,7 +865,13 @@
     'confirm-no':            ['i18n', 'confirmNo'],
     'error-message':         ['i18n', 'errorMessage'],
     'today-label':           ['i18n', 'todayLabel'],
-    'typing-label':          ['i18n', 'typingLabel']
+    'typing-label':          ['i18n', 'typingLabel'],
+    'privacy-enabled':       ['privacy', 'enabled'],
+    'privacy-url':           ['privacy', 'url'],
+    'privacy-title':         ['privacy', 'title'],
+    'privacy-text':          ['privacy', 'text'],
+    'privacy-link-label':    ['privacy', 'linkLabel'],
+    'privacy-accept-label':  ['privacy', 'acceptLabel']
   };
 
   function configFromElement(el) {
