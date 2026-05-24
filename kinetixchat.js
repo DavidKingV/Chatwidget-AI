@@ -110,6 +110,30 @@
     );
   }
 
+  // Insert an <img> inside a circular avatar container. On load error, restore
+  // the provided fallback (text or HTML). Keeps Instagram-style cropping via
+  // object-fit:cover in CSS.
+  function setAvatarImage(container, url, fallbackText, fallbackHtml) {
+    if (!url) {
+      if (fallbackText) container.textContent = fallbackText;
+      else if (fallbackHtml) container.innerHTML = fallbackHtml;
+      return;
+    }
+    var img = document.createElement('img');
+    img.className = 'kxc-avatar-img';
+    img.src = url;
+    img.alt = fallbackText || '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', function () {
+      container.innerHTML = '';
+      if (fallbackText) container.textContent = fallbackText;
+      else if (fallbackHtml) container.innerHTML = fallbackHtml;
+    });
+    container.appendChild(img);
+  }
+
   function formatTime(ts) {
     var d = new Date(ts);
     var h = d.getHours();
@@ -134,8 +158,11 @@
     '.kxc-header{display:flex;align-items:center;gap:12px;padding:14px 16px;' +
     'background:#fff;border-bottom:1px solid #eef0f2;flex-shrink:0}' +
     '.kxc-avatar{width:36px;height:36px;border-radius:50%;background:#e5e7eb;' +
-    'background-size:cover;background-position:center;flex-shrink:0;' +
-    'display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:600}' +
+    'flex-shrink:0;display:flex;align-items:center;justify-content:center;' +
+    'color:#6b7280;font-weight:600;overflow:hidden;' +
+    'box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}' +
+    '.kxc-avatar-img{width:100%;height:100%;object-fit:cover;object-position:center;' +
+    'display:block;border:0}' +
     '.kxc-brand{flex:1;min-width:0}' +
     '.kxc-brand-name{font-weight:600;font-size:14px;color:#111827;' +
     'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
@@ -172,7 +199,7 @@
     '.kxc-msg-user{align-self:flex-end;flex-direction:row-reverse}' +
     '.kxc-msg-avatar{width:28px;height:28px;border-radius:50%;background:#d1fae5;' +
     'flex-shrink:0;display:flex;align-items:center;justify-content:center;' +
-    'background-size:cover;background-position:center;color:#0f766e}' +
+    'color:#0f766e;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05)}' +
     '.kxc-msg-user .kxc-msg-avatar{background:#e5e7eb;color:#6b7280}' +
     '.kxc-bubble{padding:10px 14px;border-radius:14px;word-wrap:break-word;' +
     'overflow-wrap:break-word;white-space:normal}' +
@@ -306,11 +333,8 @@
 
     var avatar = document.createElement('div');
     avatar.className = 'kxc-avatar';
-    if (brand.avatarUrl) {
-      avatar.style.backgroundImage = 'url("' + brand.avatarUrl + '")';
-    } else {
-      avatar.textContent = (brand.name || '?').charAt(0).toUpperCase();
-    }
+    var initial = (brand.name || '?').charAt(0).toUpperCase();
+    setAvatarImage(avatar, brand.avatarUrl, initial, null);
 
     var info = document.createElement('div');
     info.className = 'kxc-brand';
@@ -536,16 +560,18 @@
     wrap.className = 'kxc-msg kxc-msg-' + msg.role;
     var avatar = document.createElement('div');
     avatar.className = 'kxc-msg-avatar';
-    if (msg.role === 'bot' && this.config.brand.avatarUrl) {
-      avatar.style.backgroundImage = 'url("' + this.config.brand.avatarUrl + '")';
+    var botSvg =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">' +
+      '<path d="M12 2a2 2 0 012 2v1h4a2 2 0 012 2v3h1a1 1 0 010 2h-1v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4H3a1 1 0 010-2h1V7a2 2 0 012-2h4V4a2 2 0 012-2zM9 12a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm6 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>' +
+      '</svg>';
+    var userSvg =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">' +
+      '<path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4 0-8 2-8 6v1h16v-1c0-4-4-6-8-6z"/>' +
+      '</svg>';
+    if (msg.role === 'bot') {
+      setAvatarImage(avatar, this.config.brand.avatarUrl, null, botSvg);
     } else {
-      avatar.innerHTML = msg.role === 'bot'
-        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">' +
-          '<path d="M12 2a2 2 0 012 2v1h4a2 2 0 012 2v3h1a1 1 0 010 2h-1v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4H3a1 1 0 010-2h1V7a2 2 0 012-2h4V4a2 2 0 012-2zM9 12a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm6 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>' +
-          '</svg>'
-        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">' +
-          '<path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4 0-8 2-8 6v1h16v-1c0-4-4-6-8-6z"/>' +
-          '</svg>';
+      avatar.innerHTML = userSvg;
     }
     var bubble = document.createElement('div');
     bubble.className = 'kxc-bubble';
@@ -583,9 +609,11 @@
     wrap.className = 'kxc-msg kxc-msg-bot';
     var avatar = document.createElement('div');
     avatar.className = 'kxc-msg-avatar';
-    if (this.config.brand.avatarUrl) {
-      avatar.style.backgroundImage = 'url("' + this.config.brand.avatarUrl + '")';
-    }
+    var typingSvg =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">' +
+      '<path d="M12 2a2 2 0 012 2v1h4a2 2 0 012 2v3h1a1 1 0 010 2h-1v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4H3a1 1 0 010-2h1V7a2 2 0 012-2h4V4a2 2 0 012-2zM9 12a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm6 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>' +
+      '</svg>';
+    setAvatarImage(avatar, this.config.brand.avatarUrl, null, typingSvg);
     var bubble = document.createElement('div');
     bubble.className = 'kxc-bubble';
     bubble.setAttribute('aria-label', this.config.i18n.typingLabel);
