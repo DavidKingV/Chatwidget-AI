@@ -23,7 +23,6 @@
 
   var DEFAULTS = {
     target: null,
-    container: null,
     webhookUrl: '',
     route: '',
     brand: {
@@ -285,108 +284,30 @@
       BASE_STORAGE_KEY + '-privacy-' + shortHash(String(config.webhookUrl || 'default'));
   }
 
-  // Builds the floating launcher (FAB button + panel) inside containerEl.
-  // The panel element is returned and used as the Shadow DOM host.
-  // containerEl must have position:relative (or any non-static value) — the
-  // method auto-applies it when the computed position is "static".
-  KinetixChatInstance.prototype._buildFloatingShell = function (containerEl) {
-    if (
-      typeof global.getComputedStyle === 'function' &&
-      global.getComputedStyle(containerEl).position === 'static'
-    ) {
-      containerEl.style.position = 'relative';
-    }
-
-    var panel = document.createElement('div');
-    panel.style.cssText =
-      'position:absolute;bottom:84px;right:20px;width:380px;height:580px;' +
-      'z-index:9998;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.18);' +
-      'overflow:hidden;display:none';
-
-    var ICON_CHAT =
-      '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
-      ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>';
-    var ICON_CLOSE =
-      '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
-      ' stroke-width="2.5" stroke-linecap="round">' +
-      '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-
-    var fab = document.createElement('button');
-    fab.style.cssText =
-      'position:absolute;bottom:20px;right:20px;width:56px;height:56px;' +
-      'border-radius:50%;color:#fff;border:none;cursor:pointer;z-index:9999;' +
-      'display:flex;align-items:center;justify-content:center;' +
-      'box-shadow:0 4px 16px rgba(0,0,0,.2)';
-    fab.style.background = this.config.ui.primaryColor;
-    fab.innerHTML = ICON_CHAT;
-    fab.setAttribute('aria-label', 'Abrir chat');
-    fab.setAttribute('aria-expanded', 'false');
-
-    var self = this;
-    fab.addEventListener('click', function () {
-      var open = panel.style.display !== 'none';
-      if (open) {
-        panel.style.display = 'none';
-        fab.innerHTML = ICON_CHAT;
-        fab.setAttribute('aria-expanded', 'false');
-        fab.setAttribute('aria-label', 'Abrir chat');
-      } else {
-        panel.style.display = 'block';
-        fab.innerHTML = ICON_CLOSE;
-        fab.setAttribute('aria-expanded', 'true');
-        fab.setAttribute('aria-label', 'Cerrar chat');
-        if (self.dom.textarea) {
-          setTimeout(function () { self.dom.textarea.focus(); }, 0);
-        }
-      }
-    });
-
-    containerEl.appendChild(panel);
-    containerEl.appendChild(fab);
-    this.dom.panelEl = panel;
-    this.dom.fab = fab;
-    return panel;
-  };
-
   KinetixChatInstance.prototype.mount = function () {
-    var hostEl;
-    if (this.config.container) {
-      var containerEl =
-        typeof this.config.container === 'string'
-          ? document.querySelector(this.config.container)
-          : this.config.container;
-      if (!containerEl) {
-        if (global.console) console.error('[KinetixChat] container not found:', this.config.container);
-        return;
-      }
-      hostEl = this._buildFloatingShell(containerEl);
-      if (!hostEl) return;
-    } else {
-      hostEl =
-        typeof this.config.target === 'string'
-          ? document.querySelector(this.config.target)
-          : this.config.target;
-      if (!hostEl) {
-        if (global.console) console.error('[KinetixChat] target not found:', this.config.target);
-        return;
-      }
+    var container =
+      typeof this.config.target === 'string'
+        ? document.querySelector(this.config.target)
+        : this.config.target;
+    if (!container) {
+      if (global.console) console.error('[KinetixChat] target not found:', this.config.target);
+      return;
     }
 
     // Shadow DOM for full isolation against host theme (e.g. WordPress).
     var shadow;
-    if (hostEl.shadowRoot) {
-      shadow = hostEl.shadowRoot;
+    if (container.shadowRoot) {
+      shadow = container.shadowRoot;
       shadow.innerHTML = '';
-    } else if (hostEl.attachShadow) {
-      shadow = hostEl.attachShadow({ mode: 'open' });
+    } else if (container.attachShadow) {
+      shadow = container.attachShadow({ mode: 'open' });
     } else {
       // Fallback: no shadow DOM support (very old browsers). Mount in light DOM.
-      hostEl.innerHTML = '';
-      shadow = hostEl;
+      container.innerHTML = '';
+      shadow = container;
     }
     this.dom.shadow = shadow;
-    this.dom.host = hostEl;
+    this.dom.host = container;
 
     // Style element inside the shadow root.
     var style = document.createElement('style');
@@ -950,8 +871,7 @@
     'privacy-title':         ['privacy', 'title'],
     'privacy-text':          ['privacy', 'text'],
     'privacy-link-label':    ['privacy', 'linkLabel'],
-    'privacy-accept-label':  ['privacy', 'acceptLabel'],
-    'container':             ['', 'container']
+    'privacy-accept-label':  ['privacy', 'acceptLabel']
   };
 
   function configFromElement(el) {
@@ -995,8 +915,6 @@
         } else if (instance.dom.host) {
           instance.dom.host.innerHTML = '';
         }
-        if (instance.dom.fab) instance.dom.fab.remove();
-        if (instance.dom.panelEl) instance.dom.panelEl.remove();
       }
     };
   }
